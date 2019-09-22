@@ -1,0 +1,6 @@
+*.DS_store
+*.exe
+*.obj
+*.lst
+*.crf
+*.map
