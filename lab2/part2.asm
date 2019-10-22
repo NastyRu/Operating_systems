@@ -25,12 +25,14 @@ PM_seg segment para public 'code' use32
 
 		GDT	label	byte ; Таблица глобальных дескрипторов
 		gdt_null descr <> ; Нулевой дескриптор
-		gdt_flatDS descr <0FFFFh,0,0,92h,0CFh,0> ; 32-битный 4-гигабайтный сегмент с базой = 0
+		gdt_flatDS descr <0FFFFh,0,0,92h,0CFh,0> ; переключение в 32-ч битную модель памяти flat
+																						 ; с лимитом в 4 Гб и страничной адресацией
 		gdt_16bitCS	descr <RM_seg_size-1,0,0,98h,0,0> ; 16-битный 64-килобайтный сегмент кода с базой RM_seg
 		gdt_32bitCS	descr <PM_seg_size-1,0,0,98h,0CFh,0> ; 32-битный 4-гигабайтный сегмент кода с базой PM_seg
 		gdt_32bitDS	descr <PM_seg_size-1,0,0,92h,0CFh,0> ; 32-битный 4-гигабайтный сегмент данных с базой PM_seg
 		gdt_32bitSS	descr <stack_l-1,0,0,92h,0CFh,0> ; 32-битный 4-гигабайтный сегмент данных с базой stack_seg
 		gdt_size = $-GDT ; размер нашей таблицы GDT+1байт (на саму метку)
+		; сегмент видеобуфера рассчитывается как смещение
 
 		gdtr dw gdt_size-1 ; Лимит GDT
 				 dd ? ; Линейный адрес GDT
@@ -43,7 +45,9 @@ PM_seg segment para public 'code' use32
 		SEL_32bitSS equ 40
 
 		IDT	label	byte ; Таблица дескрипторов прерываний IDT
-		intr 32 dup (<0, SEL_32bitCS,0, 8Eh, 0>) ; Первые 32 элемента таблицы (в программе не используются)
+		trap1 intr 13 dup (<0, SEL_32bitCS,0, 8Fh, 0>) ; Первые 32 элемента таблицы (зарезервированы под исключения)
+		trap13 intr <0, SEL_32bitCS,0, 8Fh, 0> ; Исключение общей защиты
+		trap2 intr 18 dup (<0, SEL_32bitCS,0, 8Fh, 0>) ; Первые 32 элемента таблицы (зарезервированы под исключения)
 		int08 intr <0, SEL_32bitCS,0, 8Eh, 0> ; Дескриптор прерывания от таймера
 		int09 intr <0, SEL_32bitCS,0, 8Eh, 0> ; Дескриптор прерывания от клавиатуры
 		idt_size = $-IDT ; Размер IDT
@@ -155,9 +159,17 @@ PM_seg segment para public 'code' use32
 		; Выход из цикла - по нажатию ESC
 		jmp short $
 
+	; Обработчик остальных исключений
 	dummy_exc proc
-		iret
+		mov AX,1111h
+		jmp esc_pressed
 	dummy_exc endp
+
+	; Обработчик исключения общей защиты
+	exc13 proc
+		mov AX,0Dh
+		jmp esc_pressed
+	exc13 endp
 
 	; Обработчик прерывания таймера
 	int08_handler:
@@ -376,6 +388,18 @@ RM_seg segment para public 'CODE' use16
 		mov word ptr idtr,idt_size-1
 
 		; Заполним смещение в дескрипторах прерываний
+		mov eax,offset dummy_exc
+		mov trap1.offs_l,ax
+		shr eax,16
+		mov trap1.offs_h,ax
+		mov eax,offset exc13
+		mov trap13.offs_l,ax
+		shr eax,16
+		mov trap13.offs_h,ax
+		mov eax,offset dummy_exc
+		mov trap2.offs_l,ax
+		shr eax,16
+		mov trap2.offs_h,ax
 		mov	eax,offset int08_handler ; Прерывание системного таймера
 		mov	int08.offs_l,ax
 		shr	eax,16
