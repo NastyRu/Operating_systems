@@ -5,3 +5,4 @@
 *.crf
 *.map
 *.sdf
+*.o
