@@ -74,7 +74,7 @@ void producer(int semaphore)
 
 int getsem()
 {
-  int sem = semget(IPC_PRIVATE, COUNT, IPC_CREAT | PERMS);
+  int sem = semget(IPC_PRIVATE, 3, IPC_CREAT | PERMS);
   if (sem == -1)
   {
     perror("Can't semget \n");
