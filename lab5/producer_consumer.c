@@ -28,7 +28,7 @@ struct sembuf consumer_grab[2] = { {FULLCOUNT, -1, SEM_UNDO}, {BIN, -1, SEM_UNDO
 struct sembuf consumer_free[2] = { {BIN, 1, SEM_UNDO}, {EMPTYCOUNT, 1, SEM_UNDO} };
 
 // Потребитель
-void consumer(int semaphore, int value)
+void consumer(int semaphore)
 {
   sleep(2);
   int sem_op_p = semop(semaphore, consumer_grab, 2);
@@ -38,7 +38,7 @@ void consumer(int semaphore, int value)
 		exit(1);
 	}
 
-  printf("Consumer%d get %d\n", value, addr_shared_memory[pos_consumer]);
+  printf("Consumer get %d\n", addr_shared_memory[pos_consumer]);
 	pos_consumer++;
 
 	int sem_op_v = semop(semaphore, consumer_free, 2);
@@ -50,7 +50,7 @@ void consumer(int semaphore, int value)
 }
 
 // Производитель
-void producer(int semaphore, int value)
+void producer(int semaphore)
 {
   sleep(1);
   int sem_op_p = semop(semaphore, producer_grab, 2);
@@ -61,7 +61,7 @@ void producer(int semaphore, int value)
 	}
 
   addr_shared_memory[pos_producer] = pos_producer;
-	printf("Producer%d put %d\n", value, addr_shared_memory[pos_producer]);
+	printf("Producer put %d\n", addr_shared_memory[pos_producer]);
   pos_producer++;
 
 	int sem_op_v = semop(semaphore, producer_free, 2);
@@ -126,21 +126,17 @@ int main()
   // Потребитель -- ребенок
   if (process == 0)
   {
-    int valuec = 0;
-    while (valuec < COUNT)
+    for (int i = 0; i < COUNT; i++)
     {
-      consumer(semaphore, valuec);
-      valuec++;
+      consumer(semaphore);
     }
   }
   // Производитель -- родитель
   if (process != 0)
   {
-    int valuep = 0;
-    while (valuep < COUNT)
+    for (int i = 0; i < COUNT; i++)
     {
-      producer(semaphore, valuep);
-      valuep++;
+      producer(semaphore);
     }
 
     int status;
