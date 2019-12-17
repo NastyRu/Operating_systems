@@ -80,7 +80,7 @@ int getsem()
     perror("Can't semget \n");
     exit(1);
   }
-  int se = semctl(sem, EMPTYCOUNT, SETVAL, 5);
+  int se = semctl(sem, EMPTYCOUNT, SETVAL, COUNT);
 	int sf = semctl(sem, FULLCOUNT, SETVAL, 0);
   int sb = semctl(sem, BIN, SETVAL, 1);
 
@@ -145,6 +145,6 @@ int main()
 
   // Очистка памяти
   shmctl(shared_memory, IPC_RMID, NULL);
-  semctl(semaphore, IPC_RMID, NULL);
+  semctl(semaphore, 0, IPC_RMID, 0);
   return 0;
 }
