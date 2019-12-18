@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <sys/shm.h>
+#include <signal.h>
 
 #define COUNT 3
 #define PRODUCER 0
@@ -15,6 +16,7 @@
 #define FULLCOUNT 1
 #define BIN 2
 
+int semaphore;
 int shared_memory;
 char **addr_shared_memory;
 
@@ -23,6 +25,14 @@ struct sembuf producer_grab[2] = { {EMPTYCOUNT, -1, SEM_UNDO}, {BIN, -1, SEM_UND
 struct sembuf producer_free[2] = { {BIN, 1, SEM_UNDO}, {FULLCOUNT, 1, SEM_UNDO} };
 struct sembuf consumer_grab[2] = { {FULLCOUNT, -1, SEM_UNDO}, {BIN, -1, SEM_UNDO} };
 struct sembuf consumer_free[2] = { {BIN, 1, SEM_UNDO}, {EMPTYCOUNT, 1, SEM_UNDO} };
+
+/* собственный обработчик сигнала ctrl-c */
+void catch_sigp(int sig_numb)
+{
+    signal(sig_numb, catch_sigp);
+    shmctl(shared_memory, IPC_RMID, NULL);
+    semctl(semaphore, 0, IPC_RMID, 0);
+}
 
 // Потребитель
 void consumer(int semaphore, int value)
@@ -36,6 +46,9 @@ void consumer(int semaphore, int value)
   		perror("Can't semop \n");
   		exit(1);
   	}
+
+    if ((char*)(*(addr_shared_memory + sizeof(int *))) == ((char*)(addr_shared_memory) + 2 * sizeof(int *) + 5 * sizeof(int)))
+      *(addr_shared_memory + sizeof(int *)) = (char*)addr_shared_memory + 2 * sizeof(int *);
 
     printf("Consumer%d get %d\n", value, **(addr_shared_memory + sizeof(int *)));
   	(*(addr_shared_memory + sizeof(int *)))++;
@@ -62,7 +75,10 @@ void producer(int semaphore, int value)
   		exit(1);
   	}
 
-    *(*addr_shared_memory) = value;
+    if ((char*)(*addr_shared_memory) == ((char*)(addr_shared_memory) + 2 * sizeof(int *) + 5 * sizeof(int)))
+      (*addr_shared_memory) = (char*)addr_shared_memory + 2 * sizeof(int *);
+
+    *(*addr_shared_memory) = ((char*)(*addr_shared_memory) - (char*)addr_shared_memory) - 16;
   	printf("Producer%d put %d\n", value, *(*addr_shared_memory));
     (*addr_shared_memory)++;
 
@@ -114,11 +130,11 @@ int main()
   int consumers[3];
   int producers[3];
   // Создание семафора
-  int semaphore = getsem();
+  semaphore = getsem();
   // Объявление разделяемого сегмента
   addr_shared_memory = getshared_memory();
-  *(addr_shared_memory) = addr_shared_memory + 2 * sizeof(int *);
-  *(addr_shared_memory + sizeof(int *)) = addr_shared_memory + 2 * sizeof(int *);
+  *(addr_shared_memory) = (char*)addr_shared_memory + 2 * sizeof(int *);
+  *(addr_shared_memory + sizeof(int *)) = (char*)addr_shared_memory + 2 * sizeof(int *);
 
   // Создание процессов
   for (int i = 0; i < COUNT; i++) {
@@ -145,6 +161,7 @@ int main()
     }
   }
 
+  signal(SIGINT, catch_sigp);
   int status;
   wait(&status);
 
