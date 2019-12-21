@@ -4,8 +4,9 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <sys/shm.h>
+#include <signal.h>
 
-#define COUNT 5
+#define COUNT 3
 #define PRODUCER 0
 #define CONSUMER 1
 
@@ -15,11 +16,9 @@
 #define FULLCOUNT 1
 #define BIN 2
 
+int semaphore;
 int shared_memory;
-int *addr_shared_memory;
-
-int pos_consumer;
-int pos_producer;
+char **addr_shared_memory;
 
 // Массив структур
 struct sembuf producer_grab[2] = { {EMPTYCOUNT, -1, SEM_UNDO}, {BIN, -1, SEM_UNDO} };
@@ -27,49 +26,69 @@ struct sembuf producer_free[2] = { {BIN, 1, SEM_UNDO}, {FULLCOUNT, 1, SEM_UNDO} 
 struct sembuf consumer_grab[2] = { {FULLCOUNT, -1, SEM_UNDO}, {BIN, -1, SEM_UNDO} };
 struct sembuf consumer_free[2] = { {BIN, 1, SEM_UNDO}, {EMPTYCOUNT, 1, SEM_UNDO} };
 
-// Потребитель
-void consumer(int semaphore)
+/* собственный обработчик сигнала ctrl-c */
+void catch_sigp(int sig_numb)
 {
-  sleep(2);
-  int sem_op_p = semop(semaphore, consumer_grab, 2);
-	if (sem_op_p == -1)
-	{
-		perror("Can't semop \n");
-		exit(1);
-	}
+    signal(sig_numb, catch_sigp);
+    shmctl(shared_memory, IPC_RMID, NULL);
+    semctl(semaphore, 0, IPC_RMID, 0);
+}
 
-  printf("Consumer get %d\n", addr_shared_memory[pos_consumer]);
-	pos_consumer++;
+// Потребитель
+void consumer(int semaphore, int value)
+{
+  while(1)
+  {
+    sleep(1);
+    int sem_op_p = semop(semaphore, consumer_grab, 2);
+  	if (sem_op_p == -1)
+  	{
+  		perror("Can't semop \n");
+  		exit(1);
+  	}
 
-	int sem_op_v = semop(semaphore, consumer_free, 2);
-	if (sem_op_v == -1)
-	{
-		perror("Can't semop \n");
-		exit(1);
-	}
+    if ((char*)(*(addr_shared_memory + sizeof(int *))) == ((char*)(addr_shared_memory) + 2 * sizeof(int *) + 5 * sizeof(int)))
+      *(addr_shared_memory + sizeof(int *)) = (char*)addr_shared_memory + 2 * sizeof(int *);
+
+    printf("Consumer%d get %d\n", value, **(addr_shared_memory + sizeof(int *)));
+  	(*(addr_shared_memory + sizeof(int *)))++;
+
+  	int sem_op_v = semop(semaphore, consumer_free, 2);
+  	if (sem_op_v == -1)
+  	{
+  		perror("Can't semop \n");
+  		exit(1);
+    }
+  }
 }
 
 // Производитель
-void producer(int semaphore)
+void producer(int semaphore, int value)
 {
-  sleep(1);
-  int sem_op_p = semop(semaphore, producer_grab, 2);
-  if (sem_op_p == -1)
-	{
-		perror("Can't semop \n");
-		exit(1);
-	}
+  while(1)
+  {
+    sleep(2);
+    int sem_op_p = semop(semaphore, producer_grab, 2);
+    if (sem_op_p == -1)
+  	{
+  		perror("Can't semop \n");
+  		exit(1);
+  	}
 
-  addr_shared_memory[pos_producer] = pos_producer;
-	printf("Producer put %d\n", addr_shared_memory[pos_producer]);
-  pos_producer++;
+    if ((char*)(*addr_shared_memory) == ((char*)(addr_shared_memory) + 2 * sizeof(int *) + 5 * sizeof(int)))
+      (*addr_shared_memory) = (char*)addr_shared_memory + 2 * sizeof(int *);
 
-	int sem_op_v = semop(semaphore, producer_free, 2);
-  if (sem_op_v == -1)
-	{
-		perror("Can't semop \n");
-		exit(1);
-	}
+    *(*addr_shared_memory) = ((char*)(*addr_shared_memory) - (char*)addr_shared_memory) - 16;
+  	printf("Producer%d put %d\n", value, *(*addr_shared_memory));
+    (*addr_shared_memory)++;
+
+  	int sem_op_v = semop(semaphore, producer_free, 2);
+    if (sem_op_v == -1)
+  	{
+  		perror("Can't semop \n");
+  		exit(1);
+    }
+  }
 }
 
 int getsem()
@@ -89,14 +108,14 @@ int getsem()
 
 int* getshared_memory()
 {
-  shared_memory = shmget(IPC_PRIVATE, COUNT * sizeof(int), IPC_CREAT | PERMS);
+  shared_memory = shmget(IPC_PRIVATE, 2 * sizeof(int *) + 5 * sizeof(int), IPC_CREAT | PERMS);
   if (shared_memory == -1)
   {
     perror("Can't shmget \n");
     exit(1);
   }
 
-  int *addr = shmat(shared_memory, 0, 0);
+  char *addr = shmat(shared_memory, 0, 0);
 	if ((*addr) == -1)
 	{
 		perror("Can't shmat \n");
@@ -108,40 +127,43 @@ int* getshared_memory()
 int main()
 {
   int process;
+  int consumers[3];
+  int producers[3];
   // Создание семафора
-  int semaphore = getsem();
+  semaphore = getsem();
   // Объявление разделяемого сегмента
   addr_shared_memory = getshared_memory();
-  pos_producer = 0;
-	pos_consumer = 0;
+  *(addr_shared_memory) = (char*)addr_shared_memory + 2 * sizeof(int *);
+  *(addr_shared_memory + sizeof(int *)) = (char*)addr_shared_memory + 2 * sizeof(int *);
 
-  // Создание процесса
-  process = fork();
-  if (-1 == process)
-  {
-    perror("Can’t fork \n");
-    return 1;
-  }
-
-  // Потребитель -- ребенок
-  if (process == 0)
-  {
-    for (int i = 0; i < COUNT; i++)
+  // Создание процессов
+  for (int i = 0; i < COUNT; i++) {
+    if (-1 == (producers[i] = fork()))
     {
-      consumer(semaphore);
+      perror("Can’t fork \n");
+      return 1;
     }
-  }
-  // Производитель -- родитель
-  if (process != 0)
-  {
-    for (int i = 0; i < COUNT; i++)
+    else if (0 == producers[i])
     {
-      producer(semaphore);
+      producer(semaphore, i);
+      exit(0);
     }
 
-    int status;
-    wait(&status);
+    if (-1 == (consumers[i] = fork()))
+    {
+      perror("Can’t fork \n");
+      return 1;
+    }
+    else if (0 == consumers[i])
+    {
+      consumer(semaphore, i);
+      exit(0);
+    }
   }
+
+  signal(SIGINT, catch_sigp);
+  int status;
+  wait(&status);
 
   // Очистка памяти
   shmctl(shared_memory, IPC_RMID, NULL);
