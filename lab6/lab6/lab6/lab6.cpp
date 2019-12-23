@@ -17,13 +17,11 @@ HANDLE writers[WRITERS];
 HANDLE readers[READERS];
 HANDLE can_write;
 HANDLE can_read;
-HANDLE mutex;
 
 void start_read() {
-	if (activewriter || WaitForSingleObject(can_write, 0) == WAIT_OBJECT_0) {
+	if (true == activewriter || WaitForSingleObject(can_write, 0) == WAIT_OBJECT_0) {
 		WaitForSingleObject(can_read, INFINITE);
 	}
-
 	readercount++;
 	SetEvent(can_read);
 }
@@ -36,7 +34,7 @@ void stop_read() {
 }
 
 void start_write() {
-	if (readercount > 0 || activewriter) {
+	if (readercount > 0 || true == activewriter) {
 		WaitForSingleObject(can_write, INFINITE);
 	}
 	activewriter = true;
@@ -52,13 +50,11 @@ void stop_write() {
 	}
 }
 
-DWORD WINAPI writer(LPVOID mutex) {
+DWORD WINAPI writer(LPVOID) {
 	for (int i = 0; i < ITERS; i++) {
 		start_write();
-		WaitForSingleObject(mutex, INFINITE);
 		val++;
 		cout << "Writer" << GetCurrentThreadId() << " write " << val << endl;
-		ReleaseMutex(mutex);
 		stop_write();
 		Sleep(100);
 	}
@@ -66,7 +62,7 @@ DWORD WINAPI writer(LPVOID mutex) {
 }
 
 DWORD WINAPI reader(LPVOID mutex) {
-	for (int i = 0; i < ITERS + 5; i++) {
+	for (int i = 0; i < ITERS + 6; i++) {
 		start_read();
 		WaitForSingleObject(mutex, INFINITE);
 		cout << "Reader" << GetCurrentThreadId() << " read " << val << endl;
@@ -77,20 +73,28 @@ DWORD WINAPI reader(LPVOID mutex) {
 	return OK;
 }
 
-int create_threads() {
-	mutex = CreateMutex(NULL, FALSE, NULL);
+int create_mutex_threads() {
+	HANDLE mutex = CreateMutex(NULL, FALSE, NULL);
 	if (NULL == mutex) {
 		cout << "Can't create mutex\n";
 		return ERROR;
 	}
-
+	// создание писателей
 	for (int i = 0; i < WRITERS; i++) {
-		writers[i] = CreateThread(NULL, 0, &writer, mutex, 0, NULL);
+		// данный аргумент определяет, может ли создаваемый поток быть унаследован дочерним процессом
+		// размер стека в байтах. Если передать 0, то будет использоваться значение по - умолчанию (1 мегабайт)
+		// адрес функции, которая будет выполняться потоком
+		// указатель на переменную, которая будет передана в поток
+		// флаги создания
+		// указатель на переменную, куда будет сохранён идентификатор потока
+
+		writers[i] = CreateThread(NULL, 0, &writer, NULL, 0, NULL);
 		if (NULL == writers[i]) {
 			cout << "Can't create threads\n";
 			return ERROR;
 		}
 	}
+	// создание читателей
 	for (int i = 0; i < READERS; i++) {
 		readers[i] = CreateThread(NULL, 0, &reader, mutex, 0, NULL);
 		if (NULL == readers[i]) {
@@ -103,13 +107,20 @@ int create_threads() {
 }
 
 int create_events() {
-	can_read = CreateEvent(NULL, TRUE, FALSE, TEXT("ReadEvent"));
+	// атрибут защиты
+	// тип сброса TRUE - ручной
+	// начальное состояние TRUE - сигнальное
+	// имя обьекта
+
+	// с автосбросом
+	can_read = CreateEvent(NULL, FALSE, FALSE, TEXT("ReadEvent"));
 	if (can_read == NULL) {
 		cout << "Can't create event\n";
 		return ERROR;
 	}
 
-	can_write = CreateEvent(NULL, FALSE, FALSE, TEXT("WriteEvent"));
+	// с ручным сбросом
+	can_write = CreateEvent(NULL, TRUE, FALSE, TEXT("WriteEvent"));
 	if (can_write == NULL) {
 		cout << "Can't create event\n";
 		return ERROR;
@@ -118,8 +129,14 @@ int create_events() {
 }
 
 int main() {
-	create_events();
-	create_threads();
+
+	if (create_events() != OK) {
+		return ERROR;
+	}
+	if (create_mutex_threads() != OK) {
+		return ERROR;
+	}
+
 	WaitForMultipleObjects(WRITERS, writers, TRUE, INFINITE);
 	WaitForMultipleObjects(READERS, readers, TRUE, INFINITE);
 
