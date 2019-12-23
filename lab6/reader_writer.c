@@ -15,18 +15,20 @@
 #define READERCOUNT 0
 // активные писатели
 #define ACTIVEWRITER 1
+// очередь писатей
+#define WRITERCOUNT 2
 
 int semaphore;
 int shared_memory;
 int *addr_shared_memory;
 
 // Массив структур
-struct sembuf start_read[] = { {ACTIVEWRITER, 0, SEM_UNDO}, {READERCOUNT, 1, SEM_UNDO} };
+struct sembuf start_read[] = { {ACTIVEWRITER, 0, SEM_UNDO}, {WRITERCOUNT, 0, SEM_UNDO}, {READERCOUNT, 1, SEM_UNDO} };
 struct sembuf stop_read[] = { {READERCOUNT, -1, SEM_UNDO} };
-struct sembuf start_write[] = { {READERCOUNT, 0, SEM_UNDO}, {ACTIVEWRITER, -1, SEM_UNDO} };
+struct sembuf start_write[] = { {WRITERCOUNT, 1, SEM_UNDO}, {READERCOUNT, 0, SEM_UNDO}, {ACTIVEWRITER, -1, SEM_UNDO}, {WRITERCOUNT, -1, SEM_UNDO}, };
 struct sembuf stop_write[] = { {ACTIVEWRITER, 1, SEM_UNDO} };
 
-// собственный обработчик сигнала ctrl-c 
+// собственный обработчик сигнала ctrl-c
 void catch_sigp(int sig_numb)
 {
     signal(sig_numb, catch_sigp);
@@ -36,7 +38,7 @@ void catch_sigp(int sig_numb)
 
 void StartRead()
 {
-    semop(semaphore, start_read, 2);
+    semop(semaphore, start_read, 3);
 }
 
 void StopRead()
@@ -46,7 +48,7 @@ void StopRead()
 
 void StartWrite()
 {
-    semop(semaphore, start_write, 2);
+    semop(semaphore, start_write, 4);
 }
 
 void StopWrite()
@@ -89,6 +91,7 @@ int getsem()
   }
   int sr = semctl(sem, READERCOUNT, SETVAL, 0);
 	int sa = semctl(sem, ACTIVEWRITER, SETVAL, 1);
+  int sw = semctl(sem, WRITERCOUNT, SETVAL, 0);
 
   return sem;
 }
