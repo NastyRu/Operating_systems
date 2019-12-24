@@ -17,13 +17,15 @@
 #define ACTIVEWRITER 1
 // очередь писатей
 #define WRITERCOUNT 2
+// очередь читателей
+#define READERWAIT 3
 
 int semaphore;
 int shared_memory;
 int *addr_shared_memory;
 
 // Массив структур
-struct sembuf start_read[] = { {ACTIVEWRITER, 0, SEM_UNDO}, {WRITERCOUNT, 0, SEM_UNDO}, {READERCOUNT, 1, SEM_UNDO} };
+struct sembuf start_read[] = { {READERWAIT, 1, SEM_UNDO}, {ACTIVEWRITER, 0, SEM_UNDO}, {WRITERCOUNT, 0, SEM_UNDO}, {READERCOUNT, 1, SEM_UNDO}, {READERWAIT, -1, SEM_UNDO} };
 struct sembuf stop_read[] = { {READERCOUNT, -1, SEM_UNDO} };
 struct sembuf start_write[] = { {WRITERCOUNT, 1, SEM_UNDO}, {READERCOUNT, 0, SEM_UNDO}, {ACTIVEWRITER, -1, SEM_UNDO}, {WRITERCOUNT, -1, SEM_UNDO}, };
 struct sembuf stop_write[] = { {ACTIVEWRITER, 1, SEM_UNDO} };

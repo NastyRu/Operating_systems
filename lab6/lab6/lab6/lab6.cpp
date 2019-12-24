@@ -13,37 +13,45 @@ using namespace std;
 int val = 0;
 bool activewriter = false;
 int readercount = 0;
+
+int waiting_writers = 0;
+int waiting_readers = 0;
+
 HANDLE writers[WRITERS];
 HANDLE readers[READERS];
 HANDLE can_write;
 HANDLE can_read;
 
 void start_read() {
-	if (true == activewriter || WaitForSingleObject(can_write, 0) == WAIT_OBJECT_0) {
+	InterlockedIncrement(&waiting_readers);
+	if (true == activewriter || waiting_writers > 0) {
 		WaitForSingleObject(can_read, INFINITE);
 	}
-	readercount++;
+	InterlockedDecrement(&waiting_readers);
+	InterlockedIncrement(&readercount);
 	SetEvent(can_read);
 }
 
 void stop_read() {
-	readercount--;
+	InterLockedDecrement(readercount);
 	if (0 == readercount) {
 		SetEvent(can_write);
 	}
 }
 
 void start_write() {
+	InterlockedIncrement(&waiting_writers);
 	if (readercount > 0 || true == activewriter) {
 		WaitForSingleObject(can_write, INFINITE);
 	}
+	InterlockedDecrement(&waiting_writers);
 	activewriter = true;
 }
 
 void stop_write() {
 	activewriter = false;
 	ResetEvent(can_write);
-	if (WaitForSingleObject(can_read, 0) == WAIT_OBJECT_0) {
+	if (waiting_readers > 0) {
 		SetEvent(can_read);
 	} else {
 		SetEvent(can_write);
@@ -62,7 +70,7 @@ DWORD WINAPI writer(LPVOID) {
 }
 
 DWORD WINAPI reader(LPVOID mutex) {
-	for (int i = 0; i < ITERS + 6; i++) {
+	for (int i = 0; i < ITERS + 7; i++) {
 		start_read();
 		WaitForSingleObject(mutex, INFINITE);
 		cout << "Reader" << GetCurrentThreadId() << " read " << val << endl;
