@@ -4,16 +4,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#define BUF_SIZE 0x100
+#include <unistd.h>
 
-// Вывод содержимого файла
-void readFile(char* path)
+#define BUF_SIZE 0x1000
+
+// Вывод содержимого файла ENVIRON
+void readEnviron()
 {
   char buf[BUF_SIZE];
   int len, i;
-  FILE *f;
-
-  f = fopen(path, "r");
+  FILE *f = fopen("/proc/self/environ", "r");
   if (f == NULL)
   {
     printf("%s", strerror(errno));
@@ -24,7 +24,7 @@ void readFile(char* path)
   {
     for (i = 0; i < len; i++)
       if (buf[i] == 0)
-        buf[i] = 10;
+        buf[i] = 10; // код 10, перевод строки
     buf[len] = 0;
     printf("%s", buf);
   }
@@ -32,13 +32,39 @@ void readFile(char* path)
   fclose(f);
 }
 
-// Вывод содержимого директории
-void contentDir(char* path)
+// Вывод содержимого файла STAT, CMDLINE
+void readFile(char *path)
 {
-  struct dirent	*dirp;
-	DIR	*dp;
+  char buf[BUF_SIZE];
+  FILE *f = fopen(path, "r");
+  if (f == NULL)
+  {
+    printf("%s", strerror(errno));
+    exit(errno);
+  }
 
-  if ((dp = opendir(path)) == NULL)
+  fread(buf, 1, BUF_SIZE, f);
+  char *pch = strtok(buf, " "); // поиск разделителей в файле
+
+  while (pch != NULL)
+  {
+    printf("%s\n", pch);
+    pch = strtok(NULL, " "); // продолжеени сканирование с того места,
+                             // где был остановлен предыдущий успешный вызов функции
+  }
+
+  fclose(f);
+}
+
+// Вывод содержимого директории FD
+void contentDir()
+{
+  struct dirent *dirp;
+  DIR *dp;
+  char str[BUF_SIZE];
+  char path[BUF_SIZE];
+
+  if ((dp = opendir("/proc/self/fd/")) == NULL)
 	{
     printf("%s", strerror(errno));
     exit(errno);
@@ -46,33 +72,19 @@ void contentDir(char* path)
 
   while ((dirp = readdir(dp)) != NULL)
   {
-    printf("%s\n", dirp->d_name);
-	}
-
-	if (closedir(dp) < 0)
+    // Пропуск каталогов . и ..
+    if ((strcmp(dirp->d_name, ".") != 0) && (strcmp(dirp->d_name, "..") != 0))
+    {
+      sprintf(path, "%s%s", "/proc/self/fd/", dirp->d_name);
+      readlink(path, str, BUF_SIZE); // Считывает значение символьной ссылки
+      printf("%s -> %s\n", dirp->d_name, str);
+    }
+  }
+  
+  if (closedir(dp) < 0)
   {
     printf("%s", strerror(errno));
     exit(errno);
-  }
-}
-
-void checkParams(char* path)
-{
-  struct stat	statbuf;
-
-  if (lstat(path, &statbuf) < 0)
-	{
-    printf("%s", strerror(errno));
-    exit(errno);
-  }
-
-	if (S_ISDIR(statbuf.st_mode) == 0)
-	{ // Если не каталог
-    readFile(path);
-  }
-  else
-  { // Если каталог
-    contentDir(path);
   }
 }
 
@@ -80,11 +92,20 @@ int main(int argc, char *argv[])
 {
   if (argc != 2)
   {
-    printf("Использование: ./output.exe <каталог/файл>\n");
+    printf("Использование: ./output.exe <stat/environ/fd/cmdline>\n");
     return 1;
   }
 
-  checkParams(argv[1]);
+  if (strcmp("environ", argv[1]) == 0)
+    readEnviron();
+  else if (strcmp("stat", argv[1]) == 0)
+    readFile("/proc/self/stat");
+  else if (strcmp("fd", argv[1]) == 0)
+    contentDir("/proc/self/fd/");
+  else if (strcmp("cmdline", argv[1]) == 0)
+    readFile("/proc/self/cmdline");
+  else
+    printf("Использование: ./output.exe <stat/environ/fd/cmdline>\n");
 
   return 0;
 }
