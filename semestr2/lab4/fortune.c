@@ -7,95 +7,96 @@
 #include <asm/uaccess.h>
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Usage /proc file system");
-MODULE_AUTHOR("Sofia Kirillova");
+MODULE_AUTHOR("Sidenko");
+MODULE_DESCRIPTION("Lab4");
 
-static struct proc_dir_entry *proc_entry, *direc;
-static char* strings;
-static int scursor, temp, num_of_entries = 0;
+static struct proc_dir_entry *proc_entry, *dir, *symlink;
+static char* buffer; // Хранилище 'фортунок'
+int buffer_index, next_fortune; // Индексы для записи и вывода
 
-ssize_t read_proc(struct file *filp, char *buf, size_t count, loff_t *offp )
+ssize_t fortune_write(struct file *filp, const char __user *buf, size_t len, loff_t *offp)
 {
-  if (count > temp)
-    count = temp;
+  int space_available = (PAGE_SIZE - buffer_index) + 1;
 
-  temp -= count;
-
-  copy_to_user(buf, strings, count);
-  if (count == 0)
-    temp=scursor;
-  scursor = 0;
-  memset(strings, 0, PAGE_SIZE);
-  num_of_entries = 0;
-  return count;
-}
-
-
-ssize_t write_proc(struct file *filp, const char *buf, size_t count, loff_t *offp)
-{
-  int free_space = (PAGE_SIZE - scursor) + 2;
-
-  if (count > free_space || num_of_entries == 8)
-  {
-    printk(KERN_ERR "test_proc: the list is full!\n");
+  // Хватит ли места для размещения
+  if (len > space_available)
     return -ENOSPC;
-  }
 
-  num_of_entries++;
-  strings[scursor++] = num_of_entries + '0';
-  strings[scursor++] = '.';
-  copy_from_user(&strings[scursor], buf, count);
-  scursor += count + 3;
-  temp = scursor;
-  return count;
+  // Копирование строки
+  if (copy_from_user(&buffer[buffer_index], buf, len))
+    return -EFAULT;
+
+  buffer_index += len;
+  buffer[buffer_index - 1] = '\n';
+
+  return len;
 }
 
+ssize_t fortune_read(struct file *filp, char __user *buf, size_t count, loff_t *offp)
+{
+  int len;
+  if (*offp > 0)
+    return 0;
+
+  // Перевод индекса на первый элемент
+  if (next_fortune >= buffer_index)
+    next_fortune = 0;
+
+  len = copy_to_user(buf, &buffer[next_fortune], count);
+  next_fortune += len;
+  *offp += len;
+
+  return len;
+}
 
 struct file_operations fileops =
 {
-	read: read_proc,
-	write: write_proc
+  .read = fortune_read,
+  .write = fortune_write
 };
 
-int init_fortune_module( void )
+int fortune_module_init(void)
 {
-  int ret = 0;
-  strings = (char *)vmalloc(PAGE_SIZE);
-  if (!strings)
+  buffer = (char *)vmalloc(PAGE_SIZE);
+  if (!buffer)
   {
-    ret = -ENOMEM;
+    printk(KERN_INFO "fortune: No memory for create buffer\n");
+    return -ENOMEM;
   }
-  else
-  {
-    memset(strings, 0, PAGE_SIZE);
-    proc_entry = proc_create("test_proc", 0666, NULL, &fileops);
-    //struct proc_dir_entry *direc;
-    direc = proc_mkdir("test_proc", NULL);
-    proc_symlink("test_proc_symlink", direc, "/proc/test_proc");
-    if (proc_entry == NULL)
-    {
-      ret = -EFAULT;
-      vfree(strings);
-      printk(KERN_INFO "test_proc: Couldn't create proc entry\n");
-    }
+  memset(buffer, 0, PAGE_SIZE);
 
-    else
-    {
-      printk(KERN_INFO "test_proc: Module loaded.\n");
-    }
+  proc_entry = proc_create("fortune", 0666, NULL, &fileops);
+  if (proc_entry == NULL)
+  {
+    vfree(buffer);
+    printk(KERN_INFO "fortune: Couldn't create proc entry\n");
+    return -ENOMEM;
   }
-  return ret;
+
+  dir = proc_mkdir("fortune_dir", NULL);
+  symlink = proc_symlink("fortune_symlink", NULL, "/proc/fortune_dir");
+  if ((dir == NULL) || (symlink == NULL))
+  {
+    vfree(buffer);
+    printk(KERN_INFO "fortune: Couldn't create proc dir, symlink\n");
+    return -ENOMEM;
+  }
+
+  buffer_index = 0;
+  next_fortune = 0;
+
+  printk(KERN_INFO "fortune: Module loaded.\n");
+  return 0;
 }
 
-void cleanup_fortune_module( void )
+void fortune_module_exit(void)
 {
-  //remove_proc_symlink("todolist_symlink", direc, "/proc/todolist");
-  remove_proc_entry("test_proc", NULL);
-  remove_proc_entry("test_proc", NULL);
-  vfree(strings);
-  printk(KERN_INFO "test_proc: Module unloaded.\n");
+  remove_proc_entry("fortune", NULL);
+  remove_proc_entry("fortune_symlink", NULL);
+  remove_proc_entry("fortune_dir", NULL);
+  vfree(buffer);
+  printk(KERN_INFO "fortune: Module unloaded.\n");
 }
 
-
-module_init( init_fortune_module );
-module_exit( cleanup_fortune_module );
+module_init(fortune_module_init);
+module_exit(fortune_module_exit);
