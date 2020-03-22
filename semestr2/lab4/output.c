@@ -8,6 +8,15 @@
 
 #define BUF_SIZE 0x1000
 
+static char* param_stat[] = {"pid", "comm", "state", "ppid", "pgrp", "session",
+"tty_nr", "tpgid", "flags", "minflt", "cminflt", "majflt", "cmajflt", "utime",
+"stime", "cutime", "cstime", "priority", "nice", "num_threads", "itrealvalue",
+"starttime", "vsize", "rss", "rsslim", "startcode", "endcode", "startstack",
+"kstkesp", "kstkeip", "signal", "blocked", "sigignore","sigcatch", "wchan",
+"nswap", "сnswap", "exit_signal", "processor", "rt_priority", "policy",
+"delayacct_blkio_ticks","guest_time", "cguest_time", "start_data", "end_data",
+"start_brk", "arg_start", "arg_end", "env_start", "env_end", "exit_code"};
+
 // Вывод содержимого файла ENVIRON
 void readEnviron()
 {
@@ -46,8 +55,11 @@ void readFile(char *path)
   fread(buf, 1, BUF_SIZE, f);
   char *pch = strtok(buf, " "); // поиск разделителей в файле
 
+  int i = 0;
   while (pch != NULL)
   {
+    printf("%s: ", param_stat[i]);
+    i++;
     printf("%s\n", pch);
     pch = strtok(NULL, " "); // продолжеени сканирование с того места,
                              // где был остановлен предыдущий успешный вызов функции
@@ -80,7 +92,7 @@ void contentDir()
       printf("%s -> %s\n", dirp->d_name, str);
     }
   }
-  
+
   if (closedir(dp) < 0)
   {
     printf("%s", strerror(errno));
