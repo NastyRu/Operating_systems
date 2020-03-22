@@ -58,7 +58,8 @@ void readFile(char *path)
   int i = 0;
   while (pch != NULL)
   {
-    printf("%s: ", param_stat[i]);
+    if (strcmp("/proc/self/stat", path) == 0)
+      printf("%s=", param_stat[i]);
     i++;
     printf("%s\n", pch);
     pch = strtok(NULL, " "); // продолжеени сканирование с того места,

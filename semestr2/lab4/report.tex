@@ -190,6 +190,17 @@
 
 #define BUF_SIZE 0x1000
 
+static char* param_stat[] = {"pid", "comm", "state", "ppid", "pgrp", 
+"session", "tty_nr", "tpgid", "flags", "minflt", "cminflt", "majflt", 
+"cmajflt", "utime", "stime", "cutime", "cstime", "priority", "nice", 
+"num_threads", "itrealvalue", "starttime", "vsize", "rss", "rsslim", 
+"startcode", "endcode", "startstack", "kstkesp", "kstkeip", "signal",
+"blocked", "sigignore","sigcatch", "wchan", "nswap", "сnswap", 
+"exit_signal", "processor", "rt_priority", "policy", 
+"delayacct_blkio_ticks","guest_time", "cguest_time", "start_data", 
+"end_data", "start_brk", "arg_start", "arg_end", "env_start", 
+"env_end", "exit_code"};
+
 // Вывод содержимого файла ENVIRON
 void readEnviron()
 {
@@ -227,9 +238,13 @@ void readFile(char *path)
 
   fread(buf, 1, BUF_SIZE, f);
   char *pch = strtok(buf, " "); // поиск разделителей в файле
-
+  
+  int i = 0;
   while (pch != NULL)
   {
+    if (strcmp("/proc/self/stat", path) == 0)
+      printf("%s=", param_stat[i]);
+    i++;
     printf("%s\n", pch);
     pch = strtok(NULL, " "); // продолжение сканирование с того места,
                              // где был остановлен предыдущий 
@@ -443,5 +458,15 @@ module_exit(fortune_module_exit);
 \includegraphics[scale=0.45]{images/rmmod}
 
 \end{enumerate}
+
+\textbf{Почему для передачи данных в ядро и из ядра в режим пользователя нужны специальные функции?}
+
+В Linux память сегментирована, указатель ссылается не на уникальную позицию в памяти, а ссылается на позицию в сегменте. 
+
+Фактически само ядро и каждый из процессов располагаются в своих собственных изолированных адресных пространствах.
+
+При выполнении обычной программы адресация происходит автоматически в соотвествии с принятой в системе. 
+
+Соответственно, если выполняется код ядра и необходимо получить доступ к сегменту кода ядра, то нужен буфер. Но когда хотим передать информацию между процессом, запущенным в режиме пользователя, и ядром, то соответствующая функция ядра получит указатель на буфер процесса. 
 
 \end{document}
