@@ -360,3 +360,12 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# Loaded kernel modules
+
+*.ko
+*.o
+*.mod.c
+*.symvers
+*.order
+*.cmd
