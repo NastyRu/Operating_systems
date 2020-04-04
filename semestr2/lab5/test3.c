@@ -7,6 +7,7 @@ int main()
 {
   // Открывает файл и связывает с ним буферизованный поток
   FILE *fd1 = fopen("test3.txt", "w");
+  fd1->aa();
   if (fd1 == NULL)
   {
     printf("%s", strerror(errno));

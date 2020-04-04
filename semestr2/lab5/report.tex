@@ -251,7 +251,7 @@ int main()
 
 Тогда результатом будет являться строка, где символы поочередно выводятся то из первого буфера, то из второго. 
 
-\includegraphics[scale=0.5]{shema1}
+\includegraphics[scale=0.6]{shema1}
 
 \newpage
 
@@ -383,48 +383,41 @@ int main()
 
 \newpage
 
-\textbf{struct file}
+\textbf{struct FILE} 
 
 \begin{lstlisting}
-struct file {
-	union {
-		struct llist_node	fu_llist;
-		struct rcu_head 	fu_rcuhead;
-	} f_u;
-	struct path		f_path;
-	struct inode		*f_inode;	/* cached value */
-	const struct file_operations	*f_op;
+typedef struct __sFILE {
+    unsigned char *_p;	/* current position in (some) buffer */
+    int	_r;		/* read space left for getc() */
+    int	_w;		/* write space left for putc() */
+    short _flags;	/* flags, below; this FILE is free if 0 */
+    short _file;	/* fileno, if Unix descriptor, else -1 */
+    struct __sbuf _bf;	/* the buffer (at least 1 byte, if !NULL) */
+    int	_lbfsize;	/* 0 or -_bf._size, for inline putc */
 
-	/*
-	 * Protects f_ep_links, f_flags.
-	 * Must not be taken from IRQ context.
-	 */
-	spinlock_t		f_lock;
-	enum rw_hint		f_write_hint;
-	atomic_long_t		f_count;
-	unsigned int 		f_flags;
-	fmode_t			f_mode;
-	struct mutex		f_pos_lock;
-	loff_t			f_pos;
-	struct fown_struct	f_owner;
-	const struct cred	*f_cred;
-	struct file_ra_state	f_ra;
+    /* operations */
+    void *_cookie;	/* cookie passed to io functions */
+    int	(* _Nullable _close)(void *);
+    int	(* _Nullable _read) (void *, char *, int);
+    fpos_t	(* _Nullable _seek) (void *, fpos_t, int);
+    int	(* _Nullable _write)(void *, const char *, int);
 
-	u64			f_version;
-#ifdef CONFIG_SECURITY
-	void			*f_security;
-#endif
-	/* needed for tty driver, and maybe others */
-	void			*private_data;
+    /* separate buffer for long sequences of ungetc() */
+    struct __sbuf _ub;       /* ungetc buffer */
+    struct __sFILEX *_extra; /* additions to FILE to not break ABI */
+    int	_ur;		     /* saved _r when _r is counting ungetc data */
 
-#ifdef CONFIG_EPOLL
-	/* Used by fs/eventpoll.c to link all the hooks to this file */
-	struct list_head	f_ep_links;
-	struct list_head	f_tfile_llink;
-#endif /* #ifdef CONFIG_EPOLL */
-	struct address_space	*f_mapping;
-	errseq_t		f_wb_err;
-}
+    /* tricks to meet minimum requirements even when malloc() fails */
+    unsigned char _ubuf[3];	/* guarantee an ungetc() buffer */
+    unsigned char _nbuf[1];	/* guarantee a getc() buffer */
+
+    /* separate buffer for fgetln() when line crosses buffer boundary */
+    struct	__sbuf _lb;	/* buffer for fgetln() */
+
+    /* Unix stdio files get aligned to block boundaries on fseek() */
+    int	_blksize;	/* stat.st_blksize (may be != _bf._size) */
+    fpos_t _offset;	/* current lseek offset (see WARNING) */
+} FILE;
 \end{lstlisting}
 
 Функция fileno(FILE *stream) возвращает целочисленный файловый дескриптор, связанный с потоком, на который указывает stream.
