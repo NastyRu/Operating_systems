@@ -15,6 +15,9 @@ int main(int argc, char ** argv)
   struct sockaddr_in server;
   struct hostent *host;
   char msg_client[MSG_SIZE], msg_server[MSG_SIZE];
+  char id[10];
+  sprintf(id, "%d", getpid());
+  id[strlen(id)] = 0;
 
   if (argc < 3)
   {
@@ -55,6 +58,7 @@ int main(int argc, char ** argv)
     printf("%s", strerror(errno));
     return errno;
   }
+  write(sock, id, strlen(id));
 
   // Пока не сообщение "break"
   while (strcmp(msg_client, "break\n"))
@@ -71,7 +75,6 @@ int main(int argc, char ** argv)
     read(sock, msg_server, MSG_SIZE);
     printf("%s\n", msg_server);
   }
-
   // Закрываем сокет
   close(sock);
 

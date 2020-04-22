@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 #define SOCK_NAME "socket.soc"
 #define MSG_SIZE 256
@@ -15,6 +16,9 @@ int main(int argc, char ** argv)
   // Протокол -- 0, протокол выбирается по умолчанию
   char msg[MSG_SIZE];
   struct sockaddr_un server;
+  char id[10];
+  sprintf(id, "%d", getpid());
+  id[strlen(id)] = 0;
 
   int sock = socket(AF_UNIX, SOCK_DGRAM, 0);
   if (sock < 0)
@@ -35,6 +39,7 @@ int main(int argc, char ** argv)
   // Передаем сообщение серверу
   // sendto(дескриптор сокета, адрес буфера для передачи данных, его длина,
   // дополнительные флаги, адрес сервера, его длине)
+  sendto(sock, id, strlen(id), 0, (struct sockaddr *) &server, sizeof(server));
   sendto(sock, msg, strlen(msg), 0, (struct sockaddr *) &server, sizeof(server));
 
   return errno;

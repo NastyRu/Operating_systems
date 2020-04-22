@@ -16,6 +16,7 @@ int main()
   struct sockaddr_un server;
   char msg[MSG_SIZE];
   int bytes;
+  char pid[10];
 
   // Создание сокета в файловом пространстве имен (домен AF_UNIX)
   // Тип сокета -- SOCK_DGRAM означает датаграммный сокет
@@ -50,6 +51,7 @@ int main()
     // которая блокирует программу до тех пор, пока на входе не появятся новые данные
     // Так как нас не интересуют данные об адресе клиента
     // передаем значения NULL в предпоследнем и последнем параметрах
+    recvfrom(sock, pid, 10, 0, NULL, NULL);
     bytes = recvfrom(sock, msg, MSG_SIZE, 0, NULL, NULL);
     if (bytes < 0)
     {
@@ -58,7 +60,7 @@ int main()
     }
     // Символ окончания строки
     msg[bytes] = 0;
-    printf("Сообщение от клиента: %s\n", msg);
+    printf("Сообщение от клиента %d: %s\n", atoi(pid), msg);
   }
 
   // Закрываем сокет

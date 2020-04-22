@@ -13,11 +13,12 @@
 int maxi, maxfd;
 
 // Соединение с новым клиентом
-int newClient(int listensock, int client[FD_SETSIZE], fd_set *allset, fd_set *reset)
+int newClient(int listensock, int client[FD_SETSIZE], int id[FD_SETSIZE], fd_set *allset, fd_set *reset)
 {
   // Индекс
   int i;
   int connfd;
+  char pid[MSG_SIZE];
 
   if (FD_ISSET(listensock, reset))
   {
@@ -59,12 +60,15 @@ int newClient(int listensock, int client[FD_SETSIZE], fd_set *allset, fd_set *re
     // Максимальный индекс в массиве клиентов
     if (i > maxi)
       maxi = i;
-    printf("Клиент %d подключился\n", i);
+
+    read(connfd, pid, MSG_SIZE);
+    id[i] = atoi(pid);
+    printf("Клиент %d подключился\n", id[i]);
   }
   return errno;
 }
 
-int readMsg(int client[FD_SETSIZE], fd_set *allset, fd_set *reset)
+int readMsg(int client[FD_SETSIZE], int id[FD_SETSIZE], fd_set *allset, fd_set *reset)
 {
   int n, i;
   int sockfd;
@@ -88,7 +92,7 @@ int readMsg(int client[FD_SETSIZE], fd_set *allset, fd_set *reset)
           FD_CLR(sockfd, allset);
           // Освобождаем ячейку в массиве клиентов
           client[i] = -1;
-          printf("Клиент %d отключился\n", i);
+          printf("Клиент %d отключился\n", id[i]);
         }
         else
         {
@@ -96,7 +100,7 @@ int readMsg(int client[FD_SETSIZE], fd_set *allset, fd_set *reset)
           write(sockfd, "OK", 2);
           // Установка символа конца строки и вывод сообщения на экран
           msg[n] = 0;
-          printf("Сообщение от клиента %d: %s", i, msg);
+          printf("Сообщение от клиента %d: %s", id[i], msg);
         }
       }
     }
@@ -108,6 +112,7 @@ int main(int argc, char ** argv)
 {
   int listensock;
   int client[FD_SETSIZE];
+  int id[FD_SETSIZE];
   fd_set reset, allset;
   // Структура предназначен для хранения адресов в формате Интернета
   struct sockaddr_in server;
@@ -173,8 +178,8 @@ int main(int argc, char ** argv)
     // она вернет управление в любом случае)
     select(maxfd + 1, &reset, NULL, NULL, NULL);
 
-    if (newClient(listensock, client, &allset, &reset) ||
-                                              readMsg(client, &allset, &reset))
+    if (newClient(listensock, client, id, &allset, &reset) ||
+                                              readMsg(client, id, &allset, &reset))
       return errno;
   }
 
