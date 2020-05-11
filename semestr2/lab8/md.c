@@ -22,7 +22,7 @@ static int number = 31;
 // Значение параметра из командной строки, иначе значение по умолчанию
 module_param(number, int, 0);
 
-static void* *line = NULL;
+static void* obj = NULL;
 
 // Конструктор вызывается при размещении каждого элемента
 static void co(void* p)
@@ -129,32 +129,26 @@ static struct file_system_type vfs_type  =  {
 // Инициализация модуля
 static int __init vfs_module_init(void)
 {
-  int i;
-
-  if(size < 0)
+  if (size < 0)
   {
     printk(KERN_ERR "VFS_MODULE invalid sizeof objects\n");
     return -EINVAL;
   }
 
   // Выделение области, является непрерывной в физической памяти
-  line = kmalloc(sizeof(void*) *number, GFP_KERNEL);
-  if(!line)
+  obj = kmalloc(sizeof(void*), GFP_KERNEL);
+  if (!obj)
   {
     printk(KERN_ERR "VFS_MODULE kmalloc error\n");
-    kfree(line);
+    kfree(obj);
     return -ENOMEM;
   }
-
-  // Инициализация области значениями
-  for(i = 0; i < number; i++)
-    line[i] = NULL;
 
   // Создание слаба
   // Расположение каждого элемента в слабе выравнивается по строкам
   cache = kmem_cache_create(SLABNAME, size, 0, SLAB_HWCACHE_ALIGN, co);
 
-  if(!cache)
+  if (!cache)
   {
     printk(KERN_ERR "VFS_MODULE cannot create cache\n");
     // Уничтожени слаба
@@ -162,16 +156,13 @@ static int __init vfs_module_init(void)
     return -ENOMEM;
   }
 
-  for(i = 0; i < number; i++)
+  // Выделение объекта
+  if (NULL == (obj = kmem_cache_alloc(cache, GFP_KERNEL)))
   {
-    // Выделение объектов
-    if(NULL == (line[i] = kmem_cache_alloc(cache, GFP_KERNEL)))
-    {
-      printk(KERN_ERR "VFS_MODULE cannot alloc cache\n");
-      for(i = 0; i < number; i++ )
-        kmem_cache_free(cache, line[i]);
-      return -ENOMEM;
-    }
+    printk(KERN_ERR "VFS_MODULE cannot alloc object\n");
+    // Уничтожени слаба
+    kmem_cache_destroy(cache);
+    return -ENOMEM;
   }
 
   printk(KERN_INFO "VFS_MODULE allocate %d objects into slab: %s\n", number, SLABNAME);
@@ -192,16 +183,13 @@ static int __init vfs_module_init(void)
 // Выход загружаемого модуля
 static void __exit vfs_module_exit(void)
 {
-  int i;
-  for(i = 0; i < number; i++)
-  {
-    // Возвращение объектов
-    kmem_cache_free(cache, line[i]);
-  }
+  // Возвращение объекта
+  kmem_cache_free(cache, obj);
+  
 
   // Уничтожени слаба
   kmem_cache_destroy(cache);
-  kfree(line);
+  kfree(obj);
 
   // Дерегистрация
   if (unregister_filesystem(&vfs_type) != 0)
