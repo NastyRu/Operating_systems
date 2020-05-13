@@ -1,26 +1,27 @@
-#include <linux/init.h> 
-#include <linux/module.h> 
-#include "md.h" 
+#include <linux/init.h>
+#include <linux/module.h>
+#include "md.h"
 
-MODULE_LICENSE( "GPL" ); 
-MODULE_AUTHOR( "Sychev Svyatoslav" ); 
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Sidenko");
+MODULE_DESCRIPTION("Lab3");
 
-static int __init md_init( void ) 
-{ 
-   printk( "+ md2: module md2 start!\n" ); 
-   printk( "+ md2: Число экспортированное из md1 : %d\n", md1_int_data ); 
-   printk( "+ md2: Строка экспортированная из md1 : %s\n", md1_str_data ); 
-   printk( "+ md2: Результат работы функции md1_get_str(0) : %s\n", md1_get_str(0) );
-   printk( "+ md2: Результат работы функции md1_get_str(1) : %s\n", md1_get_str(1) );
-   printk( "+ md2: Результат работы функции md1_get_str(2) : %s\n", md1_get_str(2) );
-   printk( "+ md2: Результат работы функции md1_factorial(4) : %d\n", md1_factorial(4) );  
-   return 0; 
-} 
+static int __init my_module_init(void)
+{
+  printk(KERN_INFO "MODULE2: loaded\n");
+  printk(KERN_INFO "MODULE2: Число экспортированное из md1 : %d\n", md1_int_data);
+  printk(KERN_INFO "MODULE2: Строка экспортированная из md1 : %s\n", md1_str_data);
+  printk(KERN_INFO "MODULE2: Результат работы функции md1_get_str(10) : %s\n", md1_get_str(10));
+  printk(KERN_INFO "MODULE2: Результат работы функции md1_get_str(1) : %s\n", md1_get_str(1));
+  printk(KERN_INFO "MODULE2: Результат работы функции md1_get_str(2) : %s\n", md1_get_str(2));
+  printk(KERN_INFO "MODULE2: Результат работы функции md1_factorial(10) : %d\n", md1_factorial(10));
+  return 0;
+}
 
-static void __exit md_exit( void ) 
-{ 
-   printk( "+ md2: module md2 unloaded!\n" ); 
-} 
+static void __exit my_module_exit(void)
+{
+  printk(KERN_INFO "MODULE2: unloaded\n");
+}
 
-module_init( md_init ); 
-module_exit( md_exit );
+module_init(my_module_init);
+module_exit(my_module_exit);
